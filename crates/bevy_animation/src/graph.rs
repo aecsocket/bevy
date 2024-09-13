@@ -33,23 +33,23 @@ use crate::AnimationClip;
 /// For example, consider the following graph:
 ///
 /// ```text
-/// ┌────────────┐                                      
-/// │            │                                      
-/// │    Idle    ├─────────────────────┐                
-/// │            │                     │                
-/// └────────────┘                     │                
-///                                    │                
+/// ┌────────────┐
+/// │            │
+/// │    Idle    ├─────────────────────┐
+/// │            │                     │
+/// └────────────┘                     │
+///                                    │
 /// ┌────────────┐                     │  ┌────────────┐
 /// │            │                     │  │            │
 /// │    Run     ├──┐                  ├──┤    Root    │
 /// │            │  │  ┌────────────┐  │  │            │
 /// └────────────┘  │  │   Blend    │  │  └────────────┘
-///                 ├──┤            ├──┘                
-/// ┌────────────┐  │  │    0.5     │                   
-/// │            │  │  └────────────┘                   
-/// │    Walk    ├──┘                                   
-/// │            │                                      
-/// └────────────┘                                      
+///                 ├──┤            ├──┘
+/// ┌────────────┐  │  │    0.5     │
+/// │            │  │  └────────────┘
+/// │    Walk    ├──┘
+/// │            │
+/// └────────────┘
 /// ```
 ///
 /// In this case, assuming that Idle, Run, and Walk are all playing with weight
@@ -105,6 +105,8 @@ pub struct AnimationGraphNode {
     /// has weight 0.3 and its parent blend node has weight 0.6, the computed
     /// weight of the animation clip is 0.18.
     pub weight: f32,
+
+    pub additive: bool,
 }
 
 /// An [`AssetLoader`] that can load [`AnimationGraph`]s as assets.
@@ -205,6 +207,22 @@ impl AnimationGraph {
         let node_index = self.graph.add_node(AnimationGraphNode {
             clip: Some(clip),
             weight,
+            additive: false,
+        });
+        self.graph.add_edge(parent, node_index, ());
+        node_index
+    }
+
+    pub fn add_additive_clip(
+        &mut self,
+        clip: Handle<AnimationClip>,
+        weight: f32,
+        parent: AnimationNodeIndex,
+    ) -> AnimationNodeIndex {
+        let node_index = self.graph.add_node(AnimationGraphNode {
+            clip: Some(clip),
+            weight,
+            additive: true,
         });
         self.graph.add_edge(parent, node_index, ());
         node_index
@@ -239,9 +257,11 @@ impl AnimationGraph {
     /// animation evaluation, the descendants of this blend node will have their
     /// weights multiplied by the weight of the blend.
     pub fn add_blend(&mut self, weight: f32, parent: AnimationNodeIndex) -> AnimationNodeIndex {
-        let node_index = self
-            .graph
-            .add_node(AnimationGraphNode { clip: None, weight });
+        let node_index = self.graph.add_node(AnimationGraphNode {
+            clip: None,
+            weight,
+            additive: false,
+        });
         self.graph.add_edge(parent, node_index, ());
         node_index
     }
@@ -318,6 +338,7 @@ impl Default for AnimationGraphNode {
         Self {
             clip: None,
             weight: 1.0,
+            additive: false,
         }
     }
 }
@@ -362,6 +383,7 @@ impl AssetLoader for AnimationGraphAssetLoader {
                         }
                     }),
                     weight: serialized_node.weight,
+                    additive: false,
                 },
                 |_, _| (),
             ),

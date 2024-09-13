@@ -24,6 +24,7 @@ use bevy_core::Name;
 use bevy_ecs::entity::MapEntities;
 use bevy_ecs::prelude::*;
 use bevy_ecs::reflect::ReflectMapEntities;
+use bevy_log::info;
 use bevy_math::{FloatExt, Quat, Vec3};
 use bevy_reflect::Reflect;
 use bevy_render::mesh::morph::MorphWeights;
@@ -869,9 +870,14 @@ pub fn animate_targets(
                     continue;
                 }
 
-                let Some(clip) = animation_graph
-                    .get(animation_graph_node_index)
-                    .and_then(|animation_graph_node| animation_graph_node.clip.as_ref())
+                let Some(animation_graph_node) = animation_graph.get(animation_graph_node_index)
+                else {
+                    continue;
+                };
+
+                let Some(clip) = animation_graph_node
+                    .clip
+                    .as_ref()
                     .and_then(|animation_clip_handle| clips.get(animation_clip_handle))
                 else {
                     continue;
@@ -881,10 +887,18 @@ pub fn animate_targets(
                     continue;
                 };
 
-                let weight = active_animation.computed_weight;
-                total_weight += weight;
+                if animation_graph_node.additive {
+                    target_context.apply(
+                        curves,
+                        active_animation.computed_weight,
+                        active_animation.seek_time,
+                    );
+                } else {
+                    let weight = active_animation.computed_weight;
+                    total_weight += weight;
 
-                target_context.apply(curves, weight / total_weight, active_animation.seek_time);
+                    target_context.apply(curves, weight / total_weight, active_animation.seek_time);
+                }
             }
         });
 }
